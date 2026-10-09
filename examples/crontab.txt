@@ -1,0 +1,8 @@
+# Linux/macOS cron: edit with `crontab -e`.
+# Every 6 hours: collect what the CDS has finished, send more if there is room, exit.
+# cron has almost no PATH and does not expand ~ or $HOME in these lines: use absolute paths, and make sure
+# PATH contains the folder with `era5-bulk` and `cdo` (`which era5-bulk`, `which cdo`).
+
+PATH=/home/me/miniconda3/envs/era5/bin:/usr/local/bin:/usr/bin:/bin
+
+17 */6 * * *  era5-bulk run /home/me/my_data.toml --once >> /home/me/era5-bulk.log 2>&1

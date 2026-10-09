@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Runs `era5-bulk run` in once-mode (the once flag in ProgramArguments below) every 6 hours on macOS:
+  collects whatever the CDS has finished, sends more requests if there is room in the queue, and exits. If the Mac is asleep at that time, launchd runs the job
+  when it wakes up. It does nothing when there is nothing to do.
+
+  1. Replace every YOU / path below. Find the executable with:   which era5-bulk
+     (launchd does not read your shell profile, so the paths must be absolute and PATH must contain the
+      folder with `cdo`: find it with   which cdo)
+  2. Save as ~/Library/LaunchAgents/com.example.era5-bulk.plist
+  3. Load it:       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.example.era5-bulk.plist
+     Run it now:    launchctl kickstart -k gui/$(id -u)/com.example.era5-bulk
+     Look at it:    tail -f ~/Library/Logs/era5-bulk.log
+     Remove it:     launchctl bootout gui/$(id -u)/com.example.era5-bulk
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.example.era5-bulk</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/YOU/miniconda3/envs/era5/bin/era5-bulk</string>
+        <string>run</string>
+        <string>/Users/YOU/my_data.toml</string>
+        <string>--once</string>
+    </array>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/YOU/miniconda3/envs/era5/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <!-- every 6 hours. For once a day at 09:00 replace this with:
+         <key>StartCalendarInterval</key><dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict> -->
+    <key>StartInterval</key>
+    <integer>21600</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/YOU/Library/Logs/era5-bulk.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/YOU/Library/Logs/era5-bulk.log</string>
+</dict>
+</plist>

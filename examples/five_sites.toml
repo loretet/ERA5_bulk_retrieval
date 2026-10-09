@@ -1,0 +1,22 @@
+# Five measurement sites (Europe, Greenland, the Azores, Oklahoma), two years, hourly, lowest 28 model levels.
+# ONE request area is used for all of them (the box around the five points), as ECMWF advises:
+# the points are cut out of each downloaded file afterwards and the big file is deleted.
+
+data_dir = "~/ERA5_data"
+dates    = "2020-01-01/2021-12-31"
+
+levtype  = "ml"
+levelist = "110/to/137"
+param    = "130/131/132/133"     # t, u, v, q   (152 = lnsp exists on level 1 only: see README)
+time     = "00/to/23/by/1"
+grid     = "0.25/0.25"
+
+max_days          = 16
+delete_area_files = true
+
+[points]
+"Cabauw"                     = [52.0, 5.0]
+"Mace Head"                  = [53.25, -10.0]
+"Summit Station"             = [72.5, -38.5]
+"ARM Southern Great Plains"  = [36.5, -97.5]
+"ARM Eastern North Atlantic" = [39.0, -28.0]

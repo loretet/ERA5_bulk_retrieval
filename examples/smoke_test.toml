@@ -1,0 +1,16 @@
+# A request of a few kilobytes: one point, two days, one model level, one variable.
+# Use it to check that your CDS key, licence acceptance and CDO work before queueing a big retrieval:
+#
+#   era5-bulk run      examples/smoke_test.toml --data-dir /tmp/era5_smoke
+#   era5-bulk validate examples/smoke_test.toml --data-dir /tmp/era5_smoke
+
+data_dir = "/tmp/era5_smoke"
+dates    = "2020-01-01/2020-01-02"
+
+levtype  = "ml"
+levelist = "137"           # the lowest model level only
+param    = "130"           # temperature
+time     = "00/to/23/by/1"
+
+[points]
+Cabauw = [52.0, 5.0]
