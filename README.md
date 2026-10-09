@@ -1,18 +1,18 @@
 # era5-bulk-retrieval
 
-Download ERA5 from the Copernicus Climate Data Store (CDS) **in bulk, without keeping your computer on**,
-without hitting the CDS limits, and with a final check that **no hour is missing**.
+Download ERA5 from the Copernicus Climate Data Store (CDS) in bulk, without keeping the machine on,
+(hopefully) without hitting CDS limits, and with a final check that no time is missing.
 
-You describe *what* you want in a small config file (period, levels, variables, and optionally a list of
+A config config file is used to describe what the use wants to get (period, levels, variables, and optionally a list of
 points). The tool then:
 
-1. **sends all the requests at once** and returns within minutes – the CDS works on them on its own servers, so
-   you can switch your computer off;
+1. **sends all the requests at once** – the CDS works on them on its own servers, so
+   you can switch your computer off (beware: CDS advises against having more than 15 requests at the same time);
 2. **collects the results whenever they are ready**, one by one, and – if you gave points – **cuts your points
    out of each big file and deletes it**, so a 250 GB retrieval needs only a few GB of disk at any time;
-3. **remembers everything** in one small JSON file, so it can be interrupted, restarted, run from a different
+3. **logs everything** in a JSON file, so it can be interrupted, restarted, run from a different
    machine, or run once a day by a scheduler, and never downloads or requests anything twice;
-4. **validates** the result: every timestamp present, every timestep complete, no truncated file.
+4. **validates** the result: checks every timestamp is present, every timestep complete, and no truncated files present.
 
 ```text
 $ era5-bulk plan five_sites.toml
@@ -30,14 +30,14 @@ Kept             5 point(s), ~2.5 GB each for the whole period
 > not yet been run against the live CDS in this form. Please run the 2-minute
 > [smoke test](#try-it-in-two-minutes) before a big retrieval, and open an issue if the live CDS behaves
 > differently from what is described here.
-
+> The reference repo where this smaller package was taken from is [on my GitHub](https://github.com/loretet/era5_abl).
 ---
 
 ## Why this exists
 
 Downloading ERA5 *model-level* data for a few locations over a few years runs into the same walls again and
-again – they are the recurring themes of CDS forum threads such as "cost limits exceeded" and "best strategy to
-retrieve the data":
+again and there are currently recurring threads in CDS forum such as "Client Error 403: cost limits exceeded" and "best strategy to
+retrieve X data":
 
 | Wall | What happens | What this tool does |
 |---|---|---|
@@ -48,10 +48,11 @@ retrieve the data":
 | **Disk fills up** | Area files of several GB each, hundreds of them | Each file is processed and deleted right after download |
 | **Did I get everything?** | A single failed or expired piece leaves a silent gap | `validate` reports missing hours by day |
 
-### One area, many points: the trade-off
+### Spatial reasoning
 
 Asking for one box around all your points means MARS reads each tape once per piece (which is what the forum
-advice favours), but the box can be much bigger than the sum of the points' neighbourhoods. For the five sites of
+advice favours), while separate requests for several locations clogs the system. The risk though is requesting a file too big to be
+easily downloaded on the user's machine. For the five sites of
 [`examples/five_sites.toml`](examples/five_sites.toml) (Europe, Greenland, the Azores, Oklahoma):
 
 | | requests | per request | total transfer |
@@ -61,7 +62,7 @@ advice favours), but the box can be much bigger than the sum of the points' neig
 
 *(estimates, see [Size estimates](#size-estimates))*. The single box is 10× more bytes but one third of the
 requests and one tape read per piece. If your points are on opposite sides of the globe the box becomes huge:
-`plan` warns you, and the better choice is **one retrieval (config file and `data_dir`) per cluster of points**.
+`plan` warns you, and the better choice is one retrieval (config file and `data_dir`) per cluster of points (i.e. several areas).
 
 ---
 
@@ -79,7 +80,7 @@ era5-bulk doctor                    # checks cdsapi, your CDS key and CDO
 * **CDS account**: create `~/.cdsapirc` with your key
   ([instructions](https://cds.climate.copernicus.eu/how-to-api)) and **accept the licence** of the
   [ERA5 complete](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-complete) dataset on the website
-  once, or every request will be rejected.
+  once, or every request will be rejected. See CDS website and CDS API documentation for more info.
 
 ## Quick start
 
@@ -97,20 +98,18 @@ era5-bulk validate my_data.toml    # the final check
 
 When everything is downloaded the pieces of each point are merged into `data_dir/merged/<point>.grib`.
 
-### Try it in two minutes
+### Test
 
 ```bash
 era5-bulk run examples/smoke_test.toml --data-dir /tmp/era5_smoke
 era5-bulk validate examples/smoke_test.toml --data-dir /tmp/era5_smoke
 ```
 
-One point, two days, one level, one variable: a request of a few kB that shows the whole chain works with your
-key. Delete `/tmp/era5_smoke` afterwards. (`run` waits for the CDS, which can take a few minutes even for a tiny
-request; press Ctrl-C and run the same command later to continue.)
+Small test to check if the system is working: one point, two days, one level, one variable.
 
 ---
 
-## The configuration file
+## The config file
 
 ```toml
 data_dir = "~/ERA5_data"
@@ -151,8 +150,8 @@ Unknown keys are an error (so a typo like `levlist` cannot silently do nothing).
 
 ### `--once`: the mode for scheduled jobs
 
-`fetch` and `run` normally **keep checking every `--wait-minutes` until everything is finished** – which can
-take days, so the computer must stay on. For a scheduled job use **`--once`**: look once, collect whatever is
+`fetch` and `run` normally keep checking every `--wait-minutes` until everything is finished, which can
+take days, so the computer must stay on (ok on some cluster with dedicated nodes, not for personal machines). For a scheduled job use `--once`: look once, collect whatever is
 ready, send what can be sent, and exit.
 
 ```bash
@@ -160,10 +159,7 @@ era5-bulk submit my_data.toml          # once, by hand
 era5-bulk run    my_data.toml --once   # every few hours, from a scheduler
 ```
 
-It is safe to run as often as you like: a lock stops two runs from working in the same `data_dir` at the same
-time (the second one exits quietly), and a run that finds nothing ready does nothing.
-The exit code is `0` normally and `1` if something needs your attention (a download or processing error, or a
-request the CDS failed repeatedly).
+To schedule the task:
 
 **macOS (launchd)** – [`examples/launchd.plist`](examples/launchd.plist). launchd does not inherit your shell's
 `PATH`, so the plist sets it (otherwise `cdo` is not found). If the Mac is asleep at the scheduled time, the job
@@ -176,19 +172,17 @@ account*, not to a machine, so you can `submit` from your laptop and `run` on th
 `data_dir/cds_requests.json`, or just submit from the cluster). Run it where outbound HTTPS works (often the
 login node) and point `--data-dir` at scratch space.
 
-### More requests than the CDS lets you queue
+(developed with AI: untested).
+
+It is important to download the files from CDS relatively quickly because the data is only kept there for a couple of days.
 
 If `plan` shows more pieces than the queue limit, set `max_queued` a bit below it and use `run`
 (not `submit` alone). Every round it first collects what is ready – freeing queue slots – and then fills them.
 
-> **Collect results within a few days.** The CDS does not keep finished results forever. A request the CDS no
-> longer knows is detected and sent again automatically, but that costs you the waiting time.
 
 ---
 
 ## How it works
-
-### Everything hangs off the file name
 
 Each piece of the period is one job with a deterministic name, e.g. `era5_20200116-20200131.grib`. The list of
 jobs is recomputed from the config on every run. The only thing stored is `data_dir/cds_requests.json`:
@@ -202,28 +196,26 @@ jobs is recomputed from the config on every run. The only thing stored is `data_
 }
 ```
 
-Which state a job is in is *inferred*, never listed:
+Which state a job is in is inferred, never listed:
 
 | Where the job is | Meaning |
 |---|---|
 | in `done` | downloaded **and** processed. Counted even though its big file was deleted |
-| big file on disk, not in `done` | downloaded, not processed yet (a run was interrupted); processed on the next run, **without downloading again** |
+| big file on disk, not in `done` | downloaded, not processed yet (a run was interrupted); processed on the next run, without downloading again |
 | in `pending` | sent to the CDS, waiting |
 | none of the above | still to send |
 
-Details that make it robust:
-
-* The file is rewritten after **every** change, atomically.
-* Downloads go to `<name>.part` and are renamed only when complete, so a kill or power cut mid-download can never
+* The file is rewritten after every change.
+* Downloads go to `<name>.part` and are renamed only when complete, so a kill or pow er cut mid-download can never
   leave something that looks like a finished file.
-* A job is marked `done` only **after** its points were extracted – a crash in between is retried, not lost.
-* A request the CDS answers "404 / not found" for is sent again; a *network error* is not taken for a lost
+* A job is marked `done` only after its points were extracted; a crash in between is retried, not lost.
+* A request the CDS answers "404 / not found" for is sent again; a network error is not taken for a lost
   request (that would double-submit), it is just retried next time.
-* A request the CDS *fails* is retried up to `max_attempts` times, then reported and left alone, instead of being
+* A request the CDS fails is retried up to `max_attempts` times, then reported and left alone, instead of being
   re-sent forever by a scheduled job.
 * `signature` is a fingerprint of the request (area, levels, parameters, time, grid – not the dates). A
   `data_dir` that holds requests for something else is refused rather than silently mixed. Extending `dates` is
-  fine and only requests the new pieces.
+  fine and only requests the new pieces .
 
 ### Files
 
@@ -254,8 +246,8 @@ Treat a `Config` as read-only once created.
 
 ## Validation
 
-`era5-bulk validate` reads only the GRIB **headers** (about 8 seconds for a two-year, 112-field file of 2 million messages; CDO
-takes ~0.65 ms per message, which extrapolates to roughly 20 minutes for the same file) and checks, for each point:
+`era5-bulk validate` reads only the GRIB headers (about 8 seconds for a two-year, 112-field file of 2 million messages; CDO
+takes ~0.65 ms per message, which extrapolates to roughly 20 minutes for the same file!) and checks, for each point:
 
 * every expected timestamp of the period is present (otherwise: which days, and how many hours of each);
 * every timestep contains **all** the fields the file has elsewhere – an hour with a field missing is reported
@@ -273,17 +265,14 @@ pieces instead. The reader handles GRIB editions 1 and 2 with one field per mess
 far use; compare the first file you download with the estimate before queueing a large retrieval. Even at 32 bits
 per value a 15-day, 28-level, 4-variable request over a 145 × 411 box would stay under 10 GB.
 
+(necessary to double check this with ECMWF support: I am not 100% sure these estiamtes are reliable. They worked for me though)
+
 ---
 
 ## FAQ
 
 **`cost limits exceeded` / the request is refused.** The request is too big: lower `max_days`, shrink the area, or
 request fewer levels/variables. `era5-bulk plan` shows the size per request before anything is sent.
-
-**Parameter 152 (log of surface pressure) is missing from my files.** It is stored on model level **1 only**.
-With `levelist = "110/to/137"` the CDS silently does not return it. Add level 1 to `levelist` (which makes the
-request ~5× bigger), or request it in a separate retrieval with `levelist = "1"`; or use surface pressure from a
-surface-level request. `plan` and `validate` both warn about this.
 
 **"Your key is of the old CDS".** Create a new key on <https://cds.climate.copernicus.eu> and `pip install -U cdsapi`.
 
@@ -308,3 +297,7 @@ The tests use a fake CDS client (`tests/fakecds.py`) and small synthetic GRIB fi
 
 MIT, see [LICENSE](LICENSE). ERA5 data are subject to the
 [Copernicus licence](https://cds.climate.copernicus.eu/); please cite them as that licence asks.
+
+## AI disclosure
+
+The package logic has been worked out talking to ECMWF/CDS users and support group, and following the instructions on the forum. I have then coded the core logic, and mostly used Claude Code to test it, add some safeguards, and organise it into a GH repo quickly (adding comments in a more structured way that I would).
