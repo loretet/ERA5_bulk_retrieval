@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
@@ -17,10 +18,20 @@ from pathlib import Path
 from .dates import piece_tag, split_dates, parse_dates
 from .util import safe_name
 
-try:  # Python 3.11+
+try:  # Python 3.11+ reads TOML out of the box
     import tomllib
-except ModuleNotFoundError:  # pragma: no cover - Python 3.10
-    import tomli as tomllib
+except ModuleNotFoundError:  # pragma: no cover - Python 3.10 and older need the backport
+    try:
+        import tomli as tomllib
+    except ModuleNotFoundError as error:
+        raise ModuleNotFoundError(
+            "Cannot read the configuration file: no TOML reader. The standard-library `tomllib` is not "
+            f"available (it comes with Python 3.11; this is Python {sys.version_info.major}."
+            f"{sys.version_info.minor}) and the `tomli` backport is not installed.\n"
+            "Install this package properly (`pip install .` from the repository, which pulls tomli in), or "
+            "just `pip install tomli`.\n"
+            "Python 3.11 and later need neither."
+        ) from error
 
 #: The CDS dataset with the complete ERA5 archive (model levels, and every other level type, through MARS).
 COLLECTION = "reanalysis-era5-complete"
