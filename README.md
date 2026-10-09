@@ -7,9 +7,9 @@ A config config file is used to describe what the use wants to get (period, leve
 points). The tool then:
 
 1. **sends all the requests at once** – the CDS works on them on its own servers, so
-   you can switch your computer off (beware: CDS advises against having more than 15 requests at the same time);
-2. **collects the results whenever they are ready**, one by one, and – if you gave points – **cuts your points
-   out of each big file and deletes it**, so a 250 GB retrieval needs only a few GB of disk at any time;
+   the computer can be switched off (beware: CDS advises against having more than 15 requests at the same time);
+2. **collects the results whenever they are ready**, one by one cuts the points
+   out of each big file and then **deletes it**;
 3. **logs everything** in a JSON file, so it can be interrupted, restarted, run from a different
    machine, or run once a day by a scheduler, and never downloads or requests anything twice;
 4. **validates** the result: checks every timestamp is present, every timestep complete, and no truncated files present.
@@ -42,15 +42,15 @@ retrieve X data":
 | Wall | What happens | What this tool does |
 |---|---|---|
 | **Request too long/large** | `cost limits exceeded` for requests of more than ~15 days of model levels | Cuts the period into pieces of at most `max_days` (default 16), one request each, never crossing a month |
-| **Too many queued requests** | The CDS allows a limited number of queued requests per user (150 in Oct 2026) | `plan` warns you; `max_queued` + `run` feed the queue as results are collected |
-| **One request per site is slow** | ERA5 is archived on tapes at ECMWF; as explained on the forum, repeatedly asking for the *same tape* (different places, same dates) lowers the priority of your requests. The area is applied *after* the data is read, so a small area costs as much tape reading as a large one | **One area for all your points**, then the points are cut out locally |
-| **`cdsapi.retrieve()` blocks** | It waits until the result is ready – hours or days – so the laptop must stay on and connected | Requests are *submitted* without waiting; results are *fetched* later |
+| **Too many queued requests** | The CDS allows a limited number of queued requests per user (150 in Oct 2026) | `plan` issues warning; `max_queued` + `run` feed the queue as results are collected |
+| **One request per site is slow** | ERA5 is archived on tapes at ECMWF; as explained on the forum, repeatedly asking for the *same tape* (different places, same dates) lowers the priority of requests. The area is applied after the data is read, so a small area costs as much tape reading as a large one | One area for all the points, then the points are cut out locally |
+| **`cdsapi.retrieve()` blocks** | It waits until the result is ready so the laptop must stay on and connected | Requests are submitted without waiting; results are fetched later |
 | **Disk fills up** | Area files of several GB each, hundreds of them | Each file is processed and deleted right after download |
 | **Did I get everything?** | A single failed or expired piece leaves a silent gap | `validate` reports missing hours by day |
 
 ### Spatial reasoning
 
-Asking for one box around all your points means MARS reads each tape once per piece (which is what the forum
+Asking for one box around all points means MARS reads each tape once per piece (which is what the forum
 advice favours), while separate requests for several locations clogs the system. The risk though is requesting a file too big to be
 easily downloaded on the user's machine. For the five sites of
 [`examples/five_sites.toml`](examples/five_sites.toml) (Europe, Greenland, the Azores, Oklahoma):
@@ -61,8 +61,8 @@ easily downloaded on the user's machine. For the five sites of
 | **one box around everything** (this tool) | **48** | **≈ 5 GB** | **≈ 237 GB** |
 
 *(estimates, see [Size estimates](#size-estimates))*. The single box is 10× more bytes but one third of the
-requests and one tape read per piece. If your points are on opposite sides of the globe the box becomes huge:
-`plan` warns you, and the better choice is one retrieval (config file and `data_dir`) per cluster of points (i.e. several areas).
+requests and one tape read per piece. If the points are on opposite sides of the globe the box becomes huge:
+`plan` issues awarning, and the better choice is one retrieval (config file and `data_dir`) per cluster of points (i.e. several areas).
 
 ---
 
@@ -75,10 +75,10 @@ era5-bulk doctor                    # checks cdsapi, your CDS key and CDO
 ```
 
 * Python ≥ 3.10. The only Python dependency is `cdsapi` (≥ 0.7.7, the version for the new CDS).
-* **CDO** is needed only if you use `points` (to cut them out and merge them). Without points the area files are
+* **CDO** is needed only if `points` are used (to cut them out and merge them). Without points the area files are
   simply kept.
-* **CDS account**: create `~/.cdsapirc` with your key
-  ([instructions](https://cds.climate.copernicus.eu/how-to-api)) and **accept the licence** of the
+* **CDS account**: create `~/.cdsapirc` with the user's personal key
+  ([instructions](https://cds.climate.copernicus.eu/how-to-api)) and accept the licence of the
   [ERA5 complete](https://cds.climate.copernicus.eu/datasets/reanalysis-era5-complete) dataset on the website
   once, or every request will be rejected. See CDS website and CDS API documentation for more info.
 
@@ -89,7 +89,7 @@ era5-bulk init my_data.toml        # writes a commented template
 $EDITOR my_data.toml               # period, levels, variables, points
 era5-bulk plan my_data.toml        # what will be asked, how big, any warning – sends nothing
 
-era5-bulk submit my_data.toml      # sends every request and returns. You may switch the computer off now.
+era5-bulk submit my_data.toml      # sends every request and returns. Computer may be switched off now.
 era5-bulk status my_data.toml      # what is done / queued / still to send (does not contact the CDS)
 
 era5-bulk run my_data.toml         # collects what is ready, sends more, repeats until everything is done
@@ -161,14 +161,14 @@ era5-bulk run    my_data.toml --once   # every few hours, from a scheduler
 
 To schedule the task:
 
-**macOS (launchd)** – [`examples/launchd.plist`](examples/launchd.plist). launchd does not inherit your shell's
+**macOS (launchd)** – [`examples/launchd.plist`](examples/launchd.plist). launchd does not inherit shell's
 `PATH`, so the plist sets it (otherwise `cdo` is not found). If the Mac is asleep at the scheduled time, the job
 runs when it wakes.
 
 **Linux (cron)** – [`examples/crontab.txt`](examples/crontab.txt).
 
-**A cluster / HPC** – [`examples/slurm_fetch.sh`](examples/slurm_fetch.sh). The requests belong to your *CDS
-account*, not to a machine, so you can `submit` from your laptop and `run` on the cluster (copy
+**A cluster / HPC** – [`examples/slurm_fetch.sh`](examples/slurm_fetch.sh). The requests belong to the user's *CDS
+account*, not to a machine, so one can `submit` from a laptop and `run` on the cluster (copy
 `data_dir/cds_requests.json`, or just submit from the cluster). Run it where outbound HTTPS works (often the
 login node) and point `--data-dir` at scratch space.
 
@@ -236,7 +236,7 @@ cfg = Config(data_dir="~/ERA5_data", dates="2020-01-01/2020-12-31",
              points={"Cabauw": (52.0, 5.0)}, param="130/131/132/133")
 print(format_plan(cfg))
 submit(cfg)                    # returns at once
-fetch(cfg, once=True)          # whenever you like; pass on_file=my_function to do your own processing
+fetch(cfg, once=True)          # whenever wanted; pass on_file=my_function to do own processing
 for report in validate(cfg): print(report.name, report.ok, report.problems)
 ```
 
@@ -262,7 +262,7 @@ pieces instead. The reader handles GRIB editions 1 and 2 with one field per mess
 
 `plan` estimates a request as `grid points × fields × timesteps × 2 bytes` plus ~1.3 kB of header per message
 (measured on ERA5 model-level GRIB2). The 2 bytes assume 16-bit packing, which is what the ERA5 fields checked so
-far use; compare the first file you download with the estimate before queueing a large retrieval. Even at 32 bits
+far use; compare the first file downloaded with the estimate before queueing a large retrieval. Even at 32 bits
 per value a 15-day, 28-level, 4-variable request over a 145 × 411 box would stay under 10 GB.
 
 (necessary to double check this with ECMWF support: I am not 100% sure these estiamtes are reliable. They worked for me though)
@@ -277,7 +277,7 @@ request fewer levels/variables. `era5-bulk plan` shows the size per request befo
 **"Your key is of the old CDS".** Create a new key on <https://cds.climate.copernicus.eu> and `pip install -U cdsapi`.
 
 **A point is not exactly where I asked.** ERA5 is on a 0.25° grid; the nearest grid point is used, and `plan`
-prints which. Interpolate afterwards if you need the exact location.
+prints which. Interpolate afterwards if the exact location is needed.
 
 **Can I download surface/pressure-level data?** Set `levtype = "sfc"` (no `levelist`) or `"pl"`, with MARS
 parameter ids. Only model levels have been exercised so far.
